@@ -2,20 +2,18 @@ import 'package:dice_game/states.dart';
 import 'package:dice_game/swatch.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'dart:async';
+import 'package:sensors/sensors.dart';
+
 void main() {
-  runApp(MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => StateManagement())],
-      child: MyApp(),
-    ),);
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    StateManagement();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Dice Dice!',
@@ -29,37 +27,84 @@ class MyApp extends StatelessWidget {
           bodyText2: TextStyle(color: Colors.black87),
         ),
       ),
-      home: MyHomePage(),
+      home: MyHomePage(title: 'Dice Dice!'),
     );
   }
 }
 
-class MyHomePage extends StatelessWidget {
+class MyHomePage extends StatefulWidget {
+  final String title;
+
+  MyHomePage({Key key, this.title}) : super(key: key);
+
+  @override
+  _MyHomePageState createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  bool shake = false;
+  int counter = 0;
+  List<double> _userAccelerometerValues;
+  List<StreamSubscription<dynamic>> _streamSubscriptions =
+      <StreamSubscription<dynamic>>[];
+
   @override
   Widget build(BuildContext context) {
+    //* Screen shake map
+    final List<String> userAccelerometer = _userAccelerometerValues
+        ?.map((double v) => v.toStringAsFixed(1))
+        ?.toList();
+
+    if (userAccelerometer != null) {
+      double z = double.parse(userAccelerometer[2]);
+      if (z < -8 || z > 8) {
+        print(
+            'x: ${userAccelerometer[0]},y: ${userAccelerometer[1]},z: ${userAccelerometer[2]}');
+        shake = true;
+        counter = 0;
+      }
+    }
+    
     return Scaffold(
-      appBar: AppBar(
-        elevation: 10.0,
-        brightness: Brightness.dark,
-        title: Center(
-          child: Text(
-            'Dice, Dice!',
-            style: Theme.of(context).textTheme.headline6,
-          ),
-        ),
-        //backgroundColor: Color.fromRGBO(11, 19, 43, 1),
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          shake
+              ? Icon(
+                  MdiIcons.dice1Outline,
+                  size: 400,
+                )
+              : Container(),
+          Text('$counter'),
+        ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(
-              MdiIcons.dice1Outline,
-              size: 300,
-              color: Theme.of(context).accentColor,
-            ),
-          ],
-        ),
+    );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    for (StreamSubscription<dynamic> subscription in _streamSubscriptions) {
+      subscription.cancel();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _streamSubscriptions.add(
+      userAccelerometerEvents.listen(
+        (UserAccelerometerEvent event) {
+          setState(() {
+            if (counter == 300) shake = false;
+            if (counter < 300) counter++;
+            _userAccelerometerValues = <double>[
+              event.x,
+              event.y,
+              event.z,
+            ]; //! format x / y / z
+          });
+        },
       ),
     );
   }
